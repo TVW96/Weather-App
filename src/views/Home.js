@@ -1,73 +1,58 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import "./Home.css";
 
-function Home() {
-    const [weather, setWeather] = useState(null);
-    const [location, setLocation] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+const fetchWeather = async ({ queryKey }) => {
+    const [_, location] = queryKey;
+    const { data } = await axios.get(`http://api.weatherstack.com/current?access_key=${process.env.REACT_APP_WEATHERSTACK_API_KEY}&query=${location}`);
+    return data;
+};
 
-    const fetchWeather = async () => {
-        const API_KEY = process.env.REACT_APP_WEATHERSTACK_API_KEY;
-        console.log(API_KEY);
-        const BASE_URL = 'http://api.weatherstack.com/current';
+export default function Home() {
+    const [location, setLocation] = useState('Seattle');
+    const [submittedLocation, setSubmittedLocation] = useState('Seattle'); // Keeps track of the location to fetch
 
-        setLoading(true);
-        setError(null);
+    const { data, isError, isLoading } = useQuery({
+        queryKey: ['weather', submittedLocation], // Refetch data when submittedLocation changes
+        queryFn: fetchWeather,
+    });
 
-        try {
-            const response = await fetch(`${BASE_URL}?access_key=${API_KEY}&query=${location}`);
-            if (!response.ok) {
-                throw new Error('Cannot fetch weather data');
-            }
-
-            const data = await response.json();
-            if (data.success === false) {
-                throw new Error(data.error.info);
-            }
-
-            setWeather(data);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        setSubmittedLocation(location); // Update the location to fetch
     };
 
-    useEffect(() => {
-        fetchWeather();
-    }, [location]);
+    if (isLoading) return <p>Loading weather data...</p>;
+    if (isError) return <p>Failed to fetch weather</p>;
 
     return (
         <div className='page'>
             <h2>Home Page</h2>
-            <p>Wondering what to wear while visiting on your vacation, enter your destination and I'll let you know:</p>
-            <form>
-                <input type='text' placeholder='Enter Location' value={location} onChange={(e) => setLocation(e.target.value)} />
-                <button onClick={fetchWeather}>Get Weather Info</button>
+            <p>Wondering what to wear while visiting on your vacation? Enter your destination, and I'll let you know:</p>
+            <form onSubmit={handleSubmit}>
+                <input
+                    type='text'
+                    placeholder='Enter Location'
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                />
+                <button type='submit'>Get Weather Info</button>
             </form>
             <div className='container'>
-                {loading && <p>Loading...</p>}
-                {error && <p style={{ color: 'red' }}>{error}</p>}
-                {weather && (
-                    <div>
-                        <h2>Weather in {weather.location.name}</h2>
-                        <p>
-                            <strong>Temperature:</strong> {weather.current.temperature}°C
-                        </p>
-                        <p>
-                            <strong>Condition:</strong> {weather.current.weather_descriptions[0]}
-                        </p>
-                        <img
-                            src={weather.current.weather_icons[0]}
-                            alt={weather.current.weather_descriptions[0]}
-                        />
-                    </div>
+                {data && data.current && data.location && (
+                    <ul>
+                        <li>Temperature: {data.current.temperature}°C</li>
+                        <li>Weather Description: {data.current.weather_descriptions[0]}</li>
+                        <li><img src={data.current.weather_icons[0]} alt="Weather Icon" /></li>
+                        <li>City: {data.location.name}</li>
+                        <li>Country: {data.location.country}</li>
+                        <li>Region: {data.location.region}</li>
+                        <li>Local Time: {data.location.localtime}</li>
+                        <li>Timezone: {data.location.timezone_id}</li>
+                    </ul>
                 )}
             </div>
         </div>
     );
 }
-
-
-export default Home;
